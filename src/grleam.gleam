@@ -8,49 +8,66 @@ import gleam/result
 import gleam/string
 import simplifile
 
+/// The command-line interface data type for grleam
 type Cli {
   Arg(pattern: String, path: String)
 }
 
+/// Creates an option for the pattern parameter
 fn pattern_opt() -> Opt(String) {
   opt.new("pattern") |> opt.help("A pattern to search for")
 }
 
+/// Creates an option for the file path parameter
 fn path_opt() -> Opt(String) {
   opt.new("path") |> opt.help("A path to a file to search in")
 }
 
+/// Reads a file and returns its contents as a list of lines
+/// Returns an error message if the file cannot be read
+fn read_file(path: String) -> Result(List(String), String) {
+  simplifile.read(path)
+  |> result.map(fn(content) { string.split(content, "\n") })
+  |> result.map_error(fn(e) {
+    string.inspect(e)
+    |> string.append(": File Not Found")
+  })
+}
+
+/// Filters lines containing the specified pattern
+fn filter_lines(lines: List(String), pattern: String) -> List(String) {
+  list.filter(lines, fn(line) { string.contains(line, pattern) })
+}
+
+/// Sets up the command-line interface for grleam
+fn setup_command() -> clip.Command(Cli) {
+  clip.command({
+    use pattern <- clip.parameter
+    use path <- clip.parameter
+    Arg(pattern, path)
+  })
+  |> clip.opt(pattern_opt())
+  |> clip.opt(path_opt())
+  |> clip.help(help.simple("grleam", "Grep-like tool in Gleam"))
+}
+
+/// Main entry point for the grleam application
+/// Parses command-line arguments, reads the specified file,
+/// filters lines containing the pattern, and prints the results
 pub fn main() -> Nil {
-  let cmd =
-    clip.command({
-      use pattern <- clip.parameter
-      use path <- clip.parameter
-      Arg(pattern, path)
-    })
-    |> clip.opt(pattern_opt())
-    |> clip.opt(path_opt())
-  let result =
-    cmd
-    |> clip.help(help.simple("grleam", "Example"))
-    |> clip.run(argv.load().arguments)
+  let result = setup_command() |> clip.run(argv.load().arguments)
 
   case result {
     Error(e) -> io.println_error(e)
     Ok(cmd) -> {
       let Arg(pattern, path) = cmd
-      let lines =
-        simplifile.read(path)
-        |> result.map(fn(content) { string.split(content, "\n") })
-      case lines {
-        Error(e) ->
-          e
-          |> string.inspect
-          |> string.append(": File Not Found")
-          |> io.println_error
-        Ok(lines) ->
-          lines
-          |> list.filter(fn(line) { string.contains(line, pattern) })
+      
+      case read_file(path) {
+        Error(e) -> io.println_error(e)
+        Ok(lines) -> {
+          filter_lines(lines, pattern)
           |> list.each(fn(line) { io.println(line) })
+        }
       }
     }
   }
