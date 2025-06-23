@@ -28,10 +28,7 @@ fn path_opt() -> Opt(String) {
 fn read_file(path: String) -> Result(List(String), String) {
   simplifile.read(path)
   |> result.map(fn(content) { string.split(content, "\n") })
-  |> result.map_error(fn(e) {
-    string.inspect(e)
-    |> string.append(": File Not Found")
-  })
+  |> result.map_error(fn(e) { simplifile.describe_error(e) })
 }
 
 /// Filters lines containing the specified pattern
