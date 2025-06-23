@@ -55,20 +55,20 @@ fn setup_command() -> clip.Command(Cli) {
 /// Parses command-line arguments, reads the specified file,
 /// filters lines containing the pattern, and prints the results
 pub fn main() -> Nil {
-  let result = setup_command() |> clip.run(argv.load().arguments)
+  let result =
+    setup_command()
+    |> clip.run(argv.load().arguments)
+    |> result.map(fn(cmd) {
+      let Arg(pattern, path) = cmd
+      read_file(path)
+      |> result.map(fn(lines) { filter_lines(lines, pattern) })
+    })
+    |> result.flatten()
 
   case result {
-    Error(e) -> io.println_error(e)
-    Ok(cmd) -> {
-      let Arg(pattern, path) = cmd
-      
-      case read_file(path) {
-        Error(e) -> io.println_error(e)
-        Ok(lines) -> {
-          filter_lines(lines, pattern)
-          |> list.each(fn(line) { io.println(line) })
-        }
-      }
-    }
+    Ok(detected_lines) ->
+      detected_lines
+      |> list.each(fn(line) { io.println(line) })
+    Error(msg) -> io.println_error(msg)
   }
 }
